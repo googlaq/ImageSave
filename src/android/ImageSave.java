@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Environment;
 import android.util.Log;
+import android.util.Base64;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
@@ -28,7 +29,7 @@ public class ImageSave extends CordovaPlugin {
 
     private final static String TAG = "ImageSave";
 
-    private ArrayList<String> imageList = null;
+    private ArrayList<ImageInfo> imageList = null;
     private ArrayList<String> errorImageList = null;
 
     private CallbackContext callbackContext = null;
@@ -78,12 +79,13 @@ public class ImageSave extends CordovaPlugin {
                 JSONObject itemJson = iamgeJsonArr.getJSONObject(i);
                 String fileFullPath = getLocalFileFullPath(itemJson.getString("cacheFileName"));
                 // check album dir exist the file
-                String imageFullPath = ALBUM_PATH + itemJson.getString("fileFullName");
+                String fileName = itemJson.getString("fileFullName");
+                String imageFullPath = ALBUM_PATH + fileName;
                 if (!checkFileExists(imageFullPath)) {
                     // album dir doesn't exist copy file
                     if (!checkFileExists(fileFullPath)) {
                         // check local file exist. if not, download it
-                        imageList.add(itemJson.getString("imageUrl"));
+                        imageList.add(new ImageInfo(fileName,itemJson.optString("imageUrl"),itemJson.optString("imageData")) );
                     } else {
                         // exist, check album dir exist the file
                         copyFile(fileFullPath, imageFullPath);
@@ -104,10 +106,8 @@ public class ImageSave extends CordovaPlugin {
             @Override
             public void run() {
                 for (int i = 0; i < imageList.size(); i++) {
-                    String imageUrl = imageList.get(i);
-                    String imageName = getImageName(imageUrl);
-                    String imageFormat = getImageFormatName(imageUrl);
-                    saveImage(imageUrl, imageName, imageFormat);
+                    ImageInfo info = imageList.get(i);
+                    saveImage(info);
                 }
                 handleSaveStatus();
             }
@@ -165,15 +165,13 @@ public class ImageSave extends CordovaPlugin {
 
     /**
      * Save image
-     *
-     * @param url      "http://www.xxx.com/file/xxx.png/xxx_yyy"
-     * @param filename "xxx_yyy"
-     * @param format   ".png"
+     * @param info 图片信息
      */
-    private void saveImage(String url, String filename, String format) {
+    private void saveImage(ImageInfo info) {
         try {
-            filename += format;
-            String filePath = url;
+            String filename = info.getFileName();
+            String filePath = info.getUrl();
+            String imageData = info.getData();
             Log.d(TAG, ALBUM_PATH);
             File dirFile = new File(ALBUM_PATH);
             if (!dirFile.exists()) {
@@ -181,36 +179,56 @@ public class ImageSave extends CordovaPlugin {
             }
             File file = new File(ALBUM_PATH + filename);
             if (!file.exists()) {
+                Log.d(TAG,file.getAbsolutePath());
                 file.createNewFile();
             } else {
                 // 文件已存在 不处理
                 return;
             }
-            InputStream is = getImageStreamFromNet(filePath);
-            if (null == is) {
-                // network image is broken
-                errorImageList.add(url);
-                errorCount++;
-                return;
-            }
-            FileOutputStream fos = null;
-            // check file
-
-            // open stream
-            fos = new FileOutputStream(file);
-            // write stream
-            int ch = 0;
-            try {
-                while ((ch = is.read()) != -1) {
-                    fos.write(ch);
+            if(imageData != null && imageData.length()>0){//处理来自Base64的数据
+                byte[] bs = Base64.decode(imageData.getBytes(), Base64.NO_WRAP);
+                FileOutputStream fout=null;
+                try {
+                    fout=new FileOutputStream(file);
+                    fout.write(bs);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }finally {
+                    if(fout!=null) {
+                        try {
+                            fout.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
                 }
-                scanPhotoLibrary(file);
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            } finally {
-                successCount++;
-                fos.close();
-                is.close();
+            }else if(filePath != null && filePath.length()>0){//处理来自url的数据
+                InputStream is = getImageStreamFromNet(filePath);
+                if (null == is) {
+                    // network image is broken
+                    errorImageList.add(filePath);
+                    errorCount++;
+                    return;
+                }
+                FileOutputStream fos = null;
+                // check file
+
+                // open stream
+                fos = new FileOutputStream(file);
+                // write stream
+                int ch = 0;
+                try {
+                    while ((ch = is.read()) != -1) {
+                        fos.write(ch);
+                    }
+                    scanPhotoLibrary(file);
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                } finally {
+                    successCount++;
+                    fos.close();
+                    is.close();
+                }
             }
         } catch (Exception e) {
             errorCount++;
@@ -256,25 +274,6 @@ public class ImageSave extends CordovaPlugin {
         cordova.getActivity().sendBroadcast(mediaScanIntent);
     }
 
-    /**
-     * Get image name
-     *
-     * @param imageUrl "http://www.xxx.com/file/xxx.png/xxx_yyy"
-     *                 !!! xxx_yyy is our real image name. If your url is different with me ,you must change this method
-     */
-    private String getImageName(String imageUrl) {
-        return imageUrl.substring(imageUrl.lastIndexOf("/") + 1);
-    }
-
-    /**
-     * Get image format
-     *
-     * @param imageUrl "http://www.xxx.com/file/xxx.png/xxx_yyy"
-     *                 !!! If your url is different with me ,you must change this method
-     */
-    private String getImageFormatName(String imageUrl) {
-        return imageUrl.substring(imageUrl.lastIndexOf("/") - 4, imageUrl.lastIndexOf("/"));
-    }
 
     /**
      * ArrayList -> JSONArray
@@ -362,4 +361,41 @@ public class ImageSave extends CordovaPlugin {
         }
     }
 
+}
+/**
+ * 图片信息类
+ * */
+class ImageInfo{
+    private String url;//图片地址
+    private String data;//图片base64 url or data 二选一
+    private String fileName;//图片名称
+    public ImageInfo(String fileName,String url,String data){
+        setUrl(url);
+        setFileName(fileName);
+        setData(data);
+    }
+
+    public String getData() {
+        return data;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setData(String data) {
+        this.data = data;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
 }
