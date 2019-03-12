@@ -86,6 +86,7 @@
     for (int i =0 ; i< imageLength; i++) {
         NSDictionary *dic = [self.imageList objectAtIndex:i];
         NSString *imageUrl = [dic objectForKey:@"imageUrl"];
+        NSString *imageData = [dic objectForKey:@"imageData"];
         NSString *cacheFileName = [dic objectForKey:@"cacheFileName"];
         
         NSString *cacheFilePath = [self getLocalFileFullPathByFileName:cacheFileName];
@@ -96,11 +97,30 @@
             // Local
             data = [self getImageDataFromLocal: cacheFilePath];
         } else {
-            // Network
-            data = [NSData dataWithContentsOfURL:[NSURL URLWithString:imageUrl]];
+            if(![self isBlankString:imageData]){
+                data = [[NSData alloc] initWithBase64EncodedString:(NSString *)imageData options: 0];
+            }else if(![self isBlankString:imageUrl]){
+                // Network
+                data = [NSData dataWithContentsOfURL:[NSURL URLWithString:imageUrl]];
+            }
         }
-        [self saveImage:data imageUrl:imageUrl];
+        if(data != nil && data != NULL){
+            [self saveImage:data imageUrl:imageUrl];
+        }
     }
+}
+    
+- (BOOL) isBlankString:(NSString *)string {
+    if (string == nil || string == NULL) {
+        return YES;
+    }
+    if ([string isKindOfClass:[NSNull class]]) {
+        return YES;
+    }
+    if ([[string stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] length]==0) {
+        return YES;
+    }
+    return NO;
 }
 
 #pragma mark - Save Image with NSData
