@@ -11,26 +11,26 @@
 #import "ImageSave.h"
 
 @interface ImageSave ()
-@property(nonatomic, strong)NSArray *imageList;
-@property(nonatomic, strong)NSString *albumName;
-@property(nonatomic, strong)NSString *cacheDirName;
-@property(nonatomic, strong)NSMutableArray *errorImageList;
-@property(nonatomic, strong)NSMutableDictionary *callbackDic;
-@property(nonatomic)NSUInteger successCount;
-@property(nonatomic)NSUInteger errorCount;
-@property(nonatomic)BOOL hasPermission;
-
-@property(nonatomic, strong)NSFileManager *fileManager;
-@property(nonatomic, strong)NSString *cacheDirPath;
-
-@property(nonatomic, strong)PHAssetCollection *createdCollection;
-
-@property (nonatomic ,strong)CDVInvokedUrlCommand  *command;
-
-@end
+    @property(nonatomic, strong)NSArray *imageList;
+    @property(nonatomic, strong)NSString *albumName;
+    @property(nonatomic, strong)NSString *cacheDirName;
+    @property(nonatomic, strong)NSMutableArray *errorImageList;
+    @property(nonatomic, strong)NSMutableDictionary *callbackDic;
+    @property(nonatomic)NSUInteger successCount;
+    @property(nonatomic)NSUInteger errorCount;
+    @property(nonatomic)BOOL hasPermission;
+    
+    @property(nonatomic, strong)NSFileManager *fileManager;
+    @property(nonatomic, strong)NSString *cacheDirPath;
+    
+    @property(nonatomic, strong)PHAssetCollection *createdCollection;
+    
+    @property (nonatomic ,strong)CDVInvokedUrlCommand  *command;
+    
+    @end
 
 @implementation ImageSave
-
+    
 - (void)saveToAlbum:(CDVInvokedUrlCommand*)command {
     self.command = command;
     NSString* jsonString = [command.arguments objectAtIndex:0];
@@ -46,13 +46,13 @@
     self.hasPermission = NO;
     [self.commandDelegate runInBackground:^{
         [self initData];
-        [self checkPhotoPermissions];
+        [self checkPhotoPermissions:TRUE];
     }];
     
 }
-
+    
 #pragma mark - Init Data
-
+    
 - (void)initData {
     self.successCount = 0;
     self.errorCount = 0;
@@ -64,23 +64,23 @@
     self.cacheDirPath = [NSString stringWithFormat:@"%@/files/%@/",libDir,self.cacheDirName];
     self.createdCollection = [self createCustomAssetCollection:self.albumName];
 }
-
+    
 #pragma mark - Success Callback
-
+    
 - (void)callbackSuccess: (NSMutableDictionary *) dic {
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:dic];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:self.command.callbackId];
 }
-
+    
 #pragma mark - Error Callback
-
+    
 - (void)callbackError: (NSMutableDictionary *) dic {
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:dic];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:self.command.callbackId];
 }
-
+    
 #pragma mark - Save Image
-
+    
 - (void)handleSavePhotoToAlbum {
     NSUInteger imageLength = self.imageList.count;
     for (int i =0 ; i< imageLength; i++) {
@@ -99,6 +99,7 @@
         } else {
             if(![self isBlankString:imageData]){
                 data = [[NSData alloc] initWithBase64EncodedString:(NSString *)imageData options: 0];
+                imageUrl = imageData;
             }else if(![self isBlankString:imageUrl]){
                 // Network
                 data = [NSData dataWithContentsOfURL:[NSURL URLWithString:imageUrl]];
@@ -122,9 +123,9 @@
     }
     return NO;
 }
-
+    
 #pragma mark - Save Image with NSData
-
+    
 - (void)saveImage:(NSData *)data imageUrl:(NSString *)url {
     if (data == nil) {
         return;
@@ -155,9 +156,9 @@
     }];
     
 }
-
+    
 #pragma mark - Handle Save State
-
+    
 - (void)handleSaveStatus {
     if (self.successCount == self.imageList.count) {
         // all success
@@ -179,96 +180,116 @@
         [self callbackError:self.callbackDic];
     }
 }
-
+    
 #pragma mark - Check Photo Permission
-
-- (void)checkPhotoPermissions {
-    PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatus];
-    if (status == PHAuthorizationStatusNotDetermined) {
-        // not sure ,block's content will called when authored
-        [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-            if (status == PHAuthorizationStatusAuthorized) {
-                // call save method
-                self.hasPermission = YES;
+    
+    - (void)checkPhotoPermissions:(BOOL)thenSave {
+        PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatus];
+        if (status == PHAuthorizationStatusNotDetermined) {
+            // not sure ,block's content will called when authored
+            [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
+                if (status == PHAuthorizationStatusAuthorized) {
+                    // call save method
+                    self.hasPermission = YES;
+                    if(thenSave){
+                        [self handleSavePhotoToAlbum];
+                    }else{
+                        self.createdCollection = [self createCustomAssetCollection:self.albumName];
+                    }
+                } else {
+                    // Denied or Restricted
+                    // open setting view
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self performSelector:@selector(openSetting) withObject:nil afterDelay:3.0];
+                    });
+                    self.hasPermission = NO;
+                    [self.callbackDic setObject:@"无访问相册权限" forKey:@"message"];
+                    [self.callbackDic setObject:@(120) forKey:@"code"];
+                    [self callbackError:self.callbackDic];
+                }
+            }];
+            
+            // allow
+        } else if (status == PHAuthorizationStatusAuthorized) {
+            // call save method
+            self.hasPermission = YES;
+            if(thenSave){
                 [self handleSavePhotoToAlbum];
+            }else{
+                self.createdCollection = [self createCustomAssetCollection:self.albumName];
             }
-        }];
-        
-        // allow
-    } else if (status == PHAuthorizationStatusAuthorized) {
-        // call save method
-        self.hasPermission = YES;
-        [self handleSavePhotoToAlbum];
-    } else {
-        // Denied or Restricted
-        // open setting view
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self performSelector:@selector(openSetting) withObject:nil afterDelay:3.0];
-        });
-        self.hasPermission = NO;
-        [self.callbackDic setObject:@"无访问相册权限" forKey:@"message"];
-        [self.callbackDic setObject:@(120) forKey:@"code"];
-        [self callbackError:self.callbackDic];
+        } else {
+            // Denied or Restricted
+            // open setting view
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self performSelector:@selector(openSetting) withObject:nil afterDelay:3.0];
+            });
+            self.hasPermission = NO;
+            [self.callbackDic setObject:@"无访问相册权限" forKey:@"message"];
+            [self.callbackDic setObject:@(120) forKey:@"code"];
+            [self callbackError:self.callbackDic];
+        }
     }
-}
-
+    
 #pragma mark - Open Setting View
-
+    
 - (void)openSetting {
     NSURL *url = [NSURL URLWithString:UIApplicationOpenSettingsURLString];
     if ([[UIApplication sharedApplication] canOpenURL:url]) {
         [[UIApplication sharedApplication] openURL:url];
     }
 }
-
-
+    
+    
 #pragma mark -  Use Photo.framework create album
-
+    
 - (PHAssetCollection *)createCustomAssetCollection: (NSString *)albumName
-{
-    // get app name
-    if (nil == albumName) {
-        albumName = [NSBundle mainBundle].infoDictionary[(NSString *)kCFBundleNameKey];
-    }
-    NSError *error = nil;
-    
-    // check app exist the album. if exist, do nothing
-    /**
-     *     Param one -  enum：
-     *     PHAssetCollectionTypeAlbum      = 1, custom album
-     *     PHAssetCollectionTypeSmartAlbum = 2, system album
-     *     PHAssetCollectionTypeMoment     = 3, date ordered album
-     *
-     *     Param two - enum：PHAssetCollectionSubtype
-     
-     *     example：PHAssetCollectionTypeSmartAlbum system album PHAssetCollectionSubtypeSmartAlbumUserLibrary user album
-     *     PHAssetCollectionSubtypeAlbumRegular normal album
-     */
-    PHFetchResult<PHAssetCollection *> *result = [PHAssetCollection fetchAssetCollectionsWithType:(PHAssetCollectionTypeAlbum)
-                                                                                          subtype:(PHAssetCollectionSubtypeAlbumRegular)
-                                                                                          options:nil];
-    for (PHAssetCollection *collection in result) {
-        if ([collection.localizedTitle isEqualToString:albumName]) {
-            // exist the album
-            return collection;
+    {
+        // get app name
+        if (nil == albumName) {
+            albumName = [NSBundle mainBundle].infoDictionary[(NSString *)kCFBundleNameKey];
         }
+        NSError *error = nil;
+        
+        // check app exist the album. if exist, do nothing
+        /**
+         *     Param one -  enum：
+         *     PHAssetCollectionTypeAlbum      = 1, custom album
+         *     PHAssetCollectionTypeSmartAlbum = 2, system album
+         *     PHAssetCollectionTypeMoment     = 3, date ordered album
+         *
+         *     Param two - enum：PHAssetCollectionSubtype
+         
+         *     example：PHAssetCollectionTypeSmartAlbum system album PHAssetCollectionSubtypeSmartAlbumUserLibrary user album
+         *     PHAssetCollectionSubtypeAlbumRegular normal album
+         */
+        PHFetchResult<PHAssetCollection *> *result = [PHAssetCollection fetchAssetCollectionsWithType:(PHAssetCollectionTypeAlbum)
+                                                                                              subtype:(PHAssetCollectionSubtypeAlbumRegular)
+                                                                                              options:nil];
+        for (PHAssetCollection *collection in result) {
+            if ([collection.localizedTitle isEqualToString:albumName]) {
+                // exist the album
+                return collection;
+            }
+        }
+        // need creat album
+        __block NSString *createdCustomAssetCollectionIdentifier = nil;
+        
+        [[PHPhotoLibrary sharedPhotoLibrary] performChangesAndWait:^{
+            PHAssetCollectionChangeRequest *collectionChangeRequest = [PHAssetCollectionChangeRequest creationRequestForAssetCollectionWithTitle:albumName];
+            createdCustomAssetCollectionIdentifier = collectionChangeRequest.placeholderForCreatedAssetCollection.localIdentifier;
+        } error:&error];
+        // block end. album created
+        if (error) {
+            NSLog(@"create album failed");
+            [self checkPhotoPermissions:FALSE];
+            return self.createdCollection;
+        }
+        return [PHAssetCollection fetchAssetCollectionsWithLocalIdentifiers:@[createdCustomAssetCollectionIdentifier] options:nil].firstObject;
     }
-    // need creat album
-    __block NSString *createdCustomAssetCollectionIdentifier = nil;
     
-    [[PHPhotoLibrary sharedPhotoLibrary] performChangesAndWait:^{
-        PHAssetCollectionChangeRequest *collectionChangeRequest = [PHAssetCollectionChangeRequest creationRequestForAssetCollectionWithTitle:albumName];
-        createdCustomAssetCollectionIdentifier = collectionChangeRequest.placeholderForCreatedAssetCollection.localIdentifier;
-    } error:&error];
-    // block end. album created
-    if (error) {
-        NSLog(@"create album failed");
-    }
-    return [PHAssetCollection fetchAssetCollectionsWithLocalIdentifiers:@[createdCustomAssetCollectionIdentifier] options:nil].firstObject;
-}
-
 # pragma mark - Get custom album list
-
+    
 - (void)getAllImageDataFromCustomAlbum:(PHAssetCollection *)collection {
     // get all PHAsset
     NSMutableArray *array = [NSMutableArray array];
@@ -293,34 +314,34 @@
         }
     }
 }
-
+    
 # pragma mark - Check Library Dir is exist file
-
+    
 - (BOOL)checkFilesExist:(NSString *)localFilePath {
     return [self.fileManager fileExistsAtPath:localFilePath];
 }
-
+    
 # pragma mark - Get file full path
-
+    
 - (NSString *)getLocalFileFullPathByFileName:(NSString *)fileName {
     return [NSString stringWithFormat:@"%@%@",self.cacheDirPath,fileName];
 }
-
+    
 # pragma mark - Get data from local file path
-
+    
 - (NSData*)getImageDataFromLocal:(NSString *)localFilePath {
     if (nil != localFilePath && [self checkFilesExist:localFilePath]) {
         return [self.fileManager contentsAtPath:localFilePath];
     }
     return nil;
 }
-
+    
 # pragma mark - Get File List From Cache Dir
-
+    
 - (NSArray *)getFileListFromCacheDir {
     // list the cached file
     NSArray *dirContents = [self.fileManager contentsOfDirectoryAtPath:self.cacheDirPath error:nil];
     return dirContents;
 }
-
-@end
+    
+    @end
