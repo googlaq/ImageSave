@@ -77,19 +77,19 @@ public class ImageSave extends CordovaPlugin {
         for (int i = 0; i < iamgeJsonArr.length(); i++) {
             try {
                 JSONObject itemJson = iamgeJsonArr.getJSONObject(i);
-                String fileFullPath = getLocalFileFullPath(itemJson.getString("cacheFileName"));
+                //String fileFullPath = getLocalFileFullPath(itemJson.getString("cacheFileName"));
                 // check album dir exist the file
                 String fileName = itemJson.getString("fileFullName");
                 String imageFullPath = ALBUM_PATH + fileName;
                 if (!checkFileExists(imageFullPath)) {
                     // album dir doesn't exist copy file
-                    if (!checkFileExists(fileFullPath)) {
+                   // if (!checkFileExists(fileFullPath)) {
                         // check local file exist. if not, download it
                         imageList.add(new ImageInfo(fileName,itemJson.optString("imageUrl"),itemJson.optString("imageData")) );
-                    } else {
+                   // } else {
                         // exist, check album dir exist the file
-                        copyFile(fileFullPath, imageFullPath);
-                    }
+                   //     copyFile(fileFullPath, imageFullPath);
+                  //  }
                 }
             } catch (JSONException e) {
                 e.printStackTrace();
@@ -185,7 +185,7 @@ public class ImageSave extends CordovaPlugin {
                 // 文件已存在 不处理
                 return;
             }
-            if(imageData != null && imageData.length()>0){//处理来自Base64的数据
+            if(imageData != null && imageData.length()>0 && !"null".equals(imageData)){//处理来自Base64的数据
                 byte[] bs = Base64.decode(imageData.getBytes(), Base64.NO_WRAP);
                 FileOutputStream fout=null;
                 try {
