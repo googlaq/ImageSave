@@ -1,5 +1,5 @@
 {
-  "name": "cordova-plugin-image-save",
+  "name": "cordova-plugin-imagesave",
   "version": "0.0.2",
   "description": "This is a plugin to save image file to gallery.It's best using with ion-img-cache.",
   "main": "index.js",
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SandLZ/ImageSave.git"
+    "url": "git+https://github.com/shuto-cn/ImageSave.git"
   },
   "keywords": [
     "android",
@@ -23,7 +23,7 @@
   "author": "sandlz",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/SandLZ/ImageSave/issues"
+    "url": "https://github.com/shuto-cn/ImageSave/issues"
   },
-  "homepage": "https://github.com/SandLZ/ImageSave#readme"
+  "homepage": "https://github.com/shuto-cn/ImageSave#readme"
 }
